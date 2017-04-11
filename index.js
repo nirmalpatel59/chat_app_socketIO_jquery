@@ -32,18 +32,32 @@ io.on("connection", function (socket) {
             io.emit('notifications', duser[0].username + " is offline now.");
         }
     });
-    socket.on('chat message', function (msg) {
+    socket.on('chat message', function (msg,msg_data) {
+        console.log(socket.id);
+        console.log(msg_data);
+        // socket.join(socket.id + "_" + msg_data.private_channel);
         var data = {
             msg:msg,
-            username:socket.username
-        }
-        io.emit('chat message', data);
+            username:socket.username,
+            roomname: socket.id + "_" + msg_data.private_channel
+        };
+        // if(socket)
+        // socket.broadcast.to(msg_data.private_channel).emit("joinRoom", data);
+        // socket.emit("joinRoom",data);
+        
+        // io.sockets.in(socket.id + "_" + msg_data.private_channel).emit("chat message", data);
+        socket.broadcast.to(msg_data.private_channel).emit("chat message",data);
+        // io.emit('chat message', data);
     });
+    // socket.on("joinRoom",function(roomDetails) {
+    //     socket.join(roomDetails.roomname);
+    //     io.sockets.in(socket.id + "_" + msg_data.private_channel).emit("chat message", data);
+    // });
     socket.on('addUser', function (msg) {
         let userdata = {
             socketId: socket.id,
             username:msg
-        }
+        };
         socket.username = msg;
         users.push(userdata);
         io.emit('userList', users);
@@ -64,4 +78,4 @@ io.on("connection", function (socket) {
 
 http.listen(3000, function () {
     console.log("server is running on ", 3000);
-})
+});
