@@ -24,18 +24,13 @@ app.use(express.static("public"));
 app.use(express.static("node_modules"));
 
 io.on("connection", function (socket) {
-    // redisInstance.hmset(msg, 'socketId', socket.id);
     socket.on("disconnect", function (reason) { 
-        // console.log(socket);
         var duser = users.filter(function (ele) {
             return ele.socketId == socket.id
         });
         users = users.filter(function (ele) {
             return ele.socketId != socket.id
         });
-        // console.log("-----------------------disconnected starts-------------");
-        // console.log(users);
-        // console.log("-----------------------disconnected ends-------------");
         io.emit('userList', users);
         if (duser && duser.length > 0) {
             io.emit('notifications', duser[0].username + " is offline now.");
@@ -48,7 +43,8 @@ io.on("connection", function (socket) {
                 console.log(err);
             }else {
                 var sset = getSortedSetKey(msg_data.sender, msg_data.receiver);
-                redisInstance.zadd(sset, Date.now(), msg_data.msg);
+                var dateNum = Date.now();
+                redisInstance.zadd(sset, Number(dateNum), (msg_data.sender +": "+msg_data.msg));
                 var data = {
                     sender: msg_data.sender,
                     receiver:msg_data.receiver,
@@ -94,29 +90,21 @@ io.on("connection", function (socket) {
         // users.push(userdata);
     });
     socket.on("typingMessage", function (uname) {
-        // console.log(uname);
         socket.broadcast.emit("typingmsg", uname + " is typing");
     });
     socket.on("noLongerTypingMessage", function (uname) {
-        // console.log(uname);
         socket.broadcast.emit("typingmsg", uname + " is stopped typing");
     });
     socket.on("cleanTypingMessage", function (uname) {
-        // console.log(uname);
         socket.broadcast.emit("typingmsg", "");
     });
     socket.on("updateSocket", function (uname) {
-        console.log("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
-        console.log(uname);console.log(socket.id);
-        console.log("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
         redisInstance.hmset(uname, 'socketId', socket.id);
     });
     io.of('/').adapter.clients(function (err, clients) {
         if(err) {
-            console.log("in if");
             console.log(err);
         }else {
-            console.log("in else");
             console.log(clients);
         }
         // console.log(clients); // an array containing all connected socket ids
@@ -150,6 +138,26 @@ app.get("/getUser",function(req,res) {
     });
 });
 
+app.get("/getMessages", function(req,res) {
+    var sender = req.query.sender;
+    var receiver = req.query.receiver;
+    var chat_id = getSortedSetKey(sender, receiver);
+    console.log(chat_id);
+    var args = [chat_id, 0, -1, 'withscores'];
+    redisInstance.zrange(args, function(err, members) {
+        if(err) {
+            res.send(err);
+        }else {
+            console.log(members);
+            var data = {
+                sender:sender,
+                receiver:receiver,
+                history:members
+            }
+            res.send(data);
+        }
+    });
+});
 http.listen(3000, function () {
     console.log("server is running on ", 3000);
 });
@@ -166,6 +174,9 @@ function getAllUsers(msg) {
 }
 
 function getSortedSetKey(user1, user2) {
+    console.log("in sorted");
+    console.log(user1);
+    console.log(user2);
     var tempstring;
     if(user1 < user2) {
         tempstring = user1 + "_" + user2;
